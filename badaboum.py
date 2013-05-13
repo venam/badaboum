@@ -168,6 +168,7 @@ class menu(object):
         elif option == 'help' or option == '?':
             print """
     target=   : The email to attack
+    bomb      : Start the bombing
     threads   : Number of threads running at the same time
     rotation  : Number of time each of threads loop through the list
     nbtimes   : Number of times to send messages
