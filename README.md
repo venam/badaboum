@@ -38,12 +38,12 @@ About
 -----
 
 Badaboum is an extensible email bomber <br>
-I don't take responsabilities for the stupidities a users do with my awesome program. <br>
+I don't take responsabilities for the stupidities a user do with my awesome program. <br>
 
 How
 ---
 
-Badaboum uses those random websites you find on the internet that let you send unlimited email to confirm something. <br>
+Badaboum uses those random websites you find on the internet that let you send unlimited emails to confirm something. <br>
 By doing that and adding multiple of those websites to the badaboum database you make sure the *victim* receive ton of different emails from different websites directly in his inbox and not in his spam directory. <br>
 Moreover, you don't risk to have an overload on your own mail server because you are sending the emails from other people mail servers. <br>
 
