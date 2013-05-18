@@ -110,7 +110,7 @@ class config_getter(object):
         if self._sleeper!="-":
             return self._sleeper
         if "sleeper=" in self._config_file:
-            return re.findall("db_name=(.*)\n",self._config_file)[0]
+            return re.findall("sleeper=(.*)\n",self._config_file)[0]
         else:
             return "-"
 
