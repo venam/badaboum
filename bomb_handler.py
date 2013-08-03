@@ -106,7 +106,10 @@ class baboum(object):
         z = self.chunkIt(links_array, int(self.config.threads()))
         print len(z)
         for data in z:
-            threading.Thread(target=self.bomber, args=(data,)).start()
+            mT = threading.Thread(target=self.bomber, args=(data,))
+            mT.start()
         if self.config.chrono() != "-":
             self.chrono_timer()
+        mT.join()
+
 
