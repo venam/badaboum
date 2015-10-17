@@ -1,19 +1,29 @@
 # -*- coding: UTF-8 -*-
 '''
-Copyright (c) 2013, Patrick Louis <patrick at unixhub.net>
+Copyright (c) 2015, Patrick Louis <patrick at iotek.org>
 
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-    1.  The author is informed of the use of his/her code. The author does not have to consent to the use; however he/she must be informed.
-    2.  If the author wishes to know when his/her code is being used, it the duty of the author to provide a current email address at the top of his/her code, above or included in the copyright statement.
-    3.  The author can opt out of being contacted, by not providing a form of contact in the copyright statement.
+    1.  The author is informed of the use of his/her code. The author does not
+    have to consent to the use; however he/she must be informed.
+    2.  If the author wishes to know when his/her code is being used, it the
+    duty of the author to provide a current email address at the top of his/her
+    code, above or included in the copyright statement.
+    3.  The author can opt out of being contacted, by not providing a form of
+    contact in the copyright statement.
     4.  If any portion of the author's code is used, credit must be given.
-            a. For example, if the author's code is being modified and/or redistributed in the form of a closed-source binary program, then the end user must still be made somehow aware that the author's work has contributed to that program.
-            b. If the code is being modified and/or redistributed in the form of code to be compiled, then the author's name in the copyright statement is sufficient.
-    5.  The following copyright statement must be included at the beginning of the code, regardless of binary form or source code form.
+            a. For example, if the author's code is being modified and/or
+            redistributed in the form of a closed-source binary program, then
+            the end user must still be made somehow aware that the author's
+            work has contributed to that program.
+            b. If the code is being modified and/or redistributed in the form
+            of code to be compiled, then the author's name in the copyright
+            statement is sufficient.
+    5.  The following copyright statement must be included at the beginning of
+    the code, regardless of binary form or source code form.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -25,215 +35,221 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-'''
-import completer,config_handler,db_handler,bomb_handler,readline
 
-#---pretty colors---#
-HEADER  = '\033[95m'
-OKBLUE  = '\033[94m'
+
+'''
+
+import completer
+import config_handler
+import db_handler
+import bomb_handler
+import readline
+import json
+
+
+# ---pretty colors--- #
+HEADER = '\033[95m'
+OKBLUE = '\033[94m'
 OKGREEN = '\033[1;32m'
 WARNING = '\033[93m'
-FAIL    = '\033[91m'
-ENDC    = '\033[0m'
-CYAN    = '\033[1;36m'
-COOL    = '\033[0;45m'
-COOL1   = '\033[1;45m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
+CYAN = '\033[1;36m'
+COOL = '\033[0;45m'
+COOL1 = '\033[1;45m'
+
 
 class menu(object):
     def __init__(self):
-        self.endprogram = False
-        self.config     = config_handler.config_getter()
-        self.db         = db_handler.db_interaction(self.config)
-        self.target     = ""
-        #---start completion---#
-        self.comp = completer.Completer()
+        self.config = config_handler.config_getter()
+        self.db = db_handler.db_interaction(self.config)
+        self.target = ""
+        # ---start completion--- #
+        # Functions that take the rest of the input (after '=') as argument
+        # and return the next state or nothing (stays in the same state)
+        self.commands = {
+            'menu': {
+                'help': self.menu_help,
+                '?': self.menu_help,
+                # TODO: update it to work with json
+                'config': self.change_config,
+                'save': self.change_config,
+                'bomb': (lambda s: 'bomb'),
+                'db': (lambda s: 'db'),
+                'insert': (lambda s: 'insert')
+            },
+            'db': {
+                'help': self.db_help,
+                '?': self.db_help,
+                'tablename': self.db_tablename,
+                'id': self.db_id,
+                'url': self.db_url,
+                'post': self.db_post,
+                'query': self.db_sql,
+                'submit': self.submit,
+                'bomb': (lambda s: 'bomb'),
+                'menu': (lambda s: 'menu'),
+                'insert': (lambda s: 'insert')
+            },
+            'bomb': {
+                'help': self.bomb_help,
+
+                '?': self.bomb_help,
+                'target': self.bomb_target,
+                'bomb': self.bomb_bomb,
+                'threads': self.bomb_threads,
+                'rotation': self.bomb_rotation,
+                'nbtimes': self.bomb_nbtimes,
+                'chrono': self.bomb_chrono,
+                'db': (lambda s: 'db'),
+                'menu': (lambda s: 'menu'),
+                'insert': (lambda s: 'insert')
+            },
+            'insert': {
+                'help': self.insert_help,
+                '?': self.insert_help,
+                'insert': self.insert_file,
+                'separator': self.insert_separator,
+                'email': self.insert_email,
+                'random': self.insert_random,
+                'submit': self.submit,
+                'db': (lambda s: 'db'),
+                'menu': (lambda s: 'menu'),
+                'bomb': (lambda s: 'bomb')
+            }
+        }
+        self.default_mode = 'menu'
+        self.comp = completer.Completer(self.default_mode, self.commands)
         readline.set_completer_delims(' \t\n;')
         readline.parse_and_bind("tab:complete")
         readline.set_completer(self.comp.complete)
 
-    def menu_mode(self):
-        option = raw_input(OKGREEN+"  "+self.config.prompt()+ENDC+" ")
-        #---menu related options---#
-        if option == 'db':
-            self.comp.mode = 'db'
-        elif option == 'bomb':
-            self.comp.mode = 'bomb'
-        elif option == 'insert':
-            self.comp.mode = 'insert'
-        elif option == 'exit':
-            self.endprogram = True
-        #---main menu---#
-        elif option == 'config' :
-            self.change_config()
-        elif option == '?' or option == 'help':
-            print """
-    bomb      : Enter bomb mode (Setup and start flooding an email)
-    db        : Enter db mode (get infos and execute sql query over the db)
-    insert    : Enter intert mode (insert new data in the db easily)
-    config    : Apply changes to the configs
-    exit      : Exit the program
-    help/?    : Display this help menu
-                    """
+    def menu_help(self, n):
+        print """
+bomb      : Enter bomb mode (Setup and start flooding an email)
+db        : Enter db mode (get infos and execute sql query over the db)
+insert    : Enter intert mode (insert new data in the db easily)
+config    : Apply changes to the configs
+exit      : Exit the program
+help/?    : Display this help menu
+"""
 
-    def change_config(self):
-        open("config.conf",'w').write("---CONFIGS---\ndb_name="+self.config.db_name()+"\nprompt="+self.config.prompt()+"\ntable_name="+self.config.table_name()+"\nid="+self.config.id()+"\nurl="+self.config.url()+"\npost="+self.config.post()+"\nrotation="+self.config.rotation()+"\nnbtimes="+self.config.nbtimes()+"\nsleeper="+self.config.sleeper()+"\nchrono="+self.config.chrono()+"\nthreads="+self.config.threads()+"\nnew_links="+self.config.new_links()+"\ndelimiter_email="+self.config.delimiter_email()+"\ndelimiter_random="+self.config.delimiter_random()+"\ndelimiter_separator="+self.config.delimiter_separator()+"\n")
+    def db_help(self, n):
+        print """
+Keep the order of the column (id,url,post), change them in this way: id=newid
+tablename : Display the current table name set in the configs
+id        : Displaay the name of the column id
+url       : Display the name of the column url
+post      : Display the name of the column post
+query=sql : Write an sql query and you'll receive the output
+            (replace sql with any query)
+submit    : Submit changes to the DB (After the execution of a query)
+menu      : Go back to the main menu
+exit      : Exit the program
+help/?    : Display this help menu
+"""
 
-    def db_mode(self):
-        option = raw_input(OKGREEN+"db "+self.config.prompt()+ENDC+" ")
-        #---menu related options---#
-        if option == 'menu':
-            self.comp.mode = 'menu'
-        elif option == 'bomb':
-            self.comp.mode = 'bomb'
-        elif option == 'insert':
-            self.comp.mode = 'insert'
-        elif option == 'exit':
-            self.endprogram = True
-        #---db related options---#
-        elif option == '?' or option == 'help':
-            print """
-    Keep the order of the column (id,url,post), change them in this way: id=newid
-    tablename : Display the current table name set in the configs
-    id        : Displaay the name of the column id
-    url       : Display the name of the column url
-    post      : Display the name of the column post
-    sql query : Write an sql query and you'll receive the output (no need to write sql before)
-    submit    : Submit changes to the DB (After the execution of a query)
-    menu      : Go back to the main menu
-    exit      : Exit the program
-    help/?    : Display this help menu
-                    """
-        elif 'tablename=' in option:
-            self.config._table_name = option.replace('tablename=','')
-        elif 'id=' in option:
-            self.config._id         = option.replace('id=','')
-        elif 'url=' in option:
-            self.config._url        = option.replace('url=','')
-        elif 'post=' in option:
-            self.config._post       = option.replace('post=','')
-        elif option == 'tablename':
-            print self.config.table_name()
-        elif option == 'id':
-            print self.config.id()
-        elif option == 'url':
-            print self.config.url()
-        elif option == 'post':
-            print self.config.post()
-        elif option == 'submit':
-            self.db.commit()
-        elif option != "":
-            try:
-                print self.db.execute(option)
-            except Exception, e:
-                print e
+    def bomb_help(self, n):
+        print """
+target=   : The email to attack
+bomb      : Start the bombing
+threads   : Number of threads running at the same time
+rotation  : Number of time each of threads loop through the list
+nbtimes   : Number of times to send messages
+chrono    : The timeout
+menu      : Go back to the main menu
+exit      : Exit the program
+help/?    : Display this help menu
+"""
 
-    def bomb_mode(self):
-        option = raw_input(OKGREEN+"bomb "+self.config.prompt()+ENDC+" ")
-        #---menu related options---#
-        if option == 'menu':
-            self.comp.mode = 'menu'
-        elif option == 'db':
-            self.comp.mode = 'db'
-        elif option == 'insert':
-            self.comp.mode = 'insert'
-        elif option == 'exit':
-            self.endprogram = True
-        #---bomb related options---#
-        elif 'target=' in option :
-            self.target = option.replace('target=','')
-        elif option == 'target':
-            print self.target
-        elif 'threads=' in option:
-            self.config._threads = option.replace('threads=','')
-        elif option == 'threads':
-            print self.config.threads()
-        elif 'rotation=' in option:
-            self.config._rotation = option.replace('rotation=','')
-        elif option == 'rotation':
-            print self.config.rotation()
-        elif 'nbtimes=' in option:
-            self.config._nbtimes = option.replace('nbtimes=','')
-        elif option == 'nbtimes':
-            print self.config.nbtimes()
-        elif 'chrono=' in option:
-            self.config._chrono = option.replace('chrono=','')
-        elif option == 'chrono':
-            print self.config.chrono()
-        elif option == 'bomb':
-            if '@' not in self.target :
-                print "wrong email"
-            else :
-                bomb = bomb_handler.baboum(self.target,self.config,self.db)
-                bomb.start_thread()
-        elif option == 'help' or option == '?':
-            print """
-    target=   : The email to attack
-    bomb      : Start the bombing
-    threads   : Number of threads running at the same time
-    rotation  : Number of time each of threads loop through the list
-    nbtimes   : Number of times to send messages
-    chrono    : The timeout
-    menu      : Go back to the main menu
-    exit      : Exit the program
-    help/?    : Display this help menu
-    """
+    def insert_help(self, n):
+        print """
+file      : Display the name of the file with the new data to add
+            (= to change it)
+separator : Display the separator between url and post (= to change it)
+email     : Display the current email separator (= to change it)
+random    : Display the current random separator (= to change it)
+insert    : Insert the new data with the current configs (from the file)
+submit    : Commit the insertion in the db
+menu      : Go back to the main menu
+exit      : Exit the program
+help/?    : Display this help menu
+"""
 
-    def insert_mode(self):
-        option = raw_input(OKGREEN+"insert "+self.config.prompt()+ENDC+" ")
-        #---menu related options---#
-        if option == 'menu':
-            self.comp.mode = 'menu'
-        elif option == 'bomb':
-            self.comp.mode = 'bomb'
-        elif option == 'db':
-            self.comp.mode = 'db'
-        elif option == 'exit':
-            self.endprogram = True
-        #---insert related options---#
-        elif 'file=' in option:
-            self.config._new_links = option.replace('file=','')
-        elif 'separator=' in option:
-            self.config._delimiter_separator = option.replace('separator=','')
-        elif 'email=' in option:
-            self.config._delimiter_email = option.replace('email=','')
-        elif 'random=' in option:
-            self.config._delimiter_random = option.replace('random=','')
-        elif option =='file':
-            print self.config.new_links()
-        elif option =='separator':
-            print self.config.delimiter_separator()
-        elif option =='email':
-            print self.config.delimiter_email()
-        elif option =='random':
-            print self.config.delimiter_random()
-        elif option =='insert':
-            self.db.insert()
-        elif option == 'submit':
-            self.db.commit()
-        elif option == 'help' or option == '?':
-            print """
-    file      : Display the name of the file with the new data to add (= to change it)
-    separator : Display the separator between url and post (= to change it)
-    email     : Display the current email separator (= to change it)
-    random    : Display the current random separator (= to change it)
-    insert    : Insert the new data with the current configs (from the file)
-    submit    : Commit the insertion in the db
-    menu      : Go back to the main menu
-    exit      : Exit the program
-    help/?    : Display this help menu
-    """
+    def set_config(self, conf, value):
+        if value and value != "":
+            self.config._config[conf] = value
+        print self.config._config[conf]
+
+    def db_tablename(self, n_table): self.set_config('table_name', n_table)
+
+    def db_id(self, n_id): self.set_config('id', n_id)
+
+    def db_url(self, n_url): self.set_config('url', n_url)
+
+    def db_post(self, n_post): self.set_config('post', n_post)
+
+    def bomb_threads(self, n_threads): self.set_config('threads', n_threads)
+
+    def bomb_rotation(self, n_rotation): self.set_config(
+        'rotation', n_rotation)
+
+    def bomb_nbtimes(self, n_times): self.set_config('nbtimes', n_times)
+
+    def bomb_chrono(self, n_chrono): self.set_config('chrono', n_chrono)
+
+    def insert_file(self, n_file): self.set_config('new_links', n_file)
+
+    def insert_separator(self, n_sep): self.set_config(
+        'delimiter_separator', n_sep)
+
+    def insert_email(self, n_e): self.set_config('delimiter_email', n_e)
+
+    def insert_random(self, n_r): self.set_config('delimiter_random', n_r)
+
+    def submit(self, n): self.db.commit()
+
+    def db_sql(self, query):
+        try:
+            print self.db.execute(query)
+        except Exception, e:
+            print e
+
+    # TODO
+    def change_config(self, n):
+        json_encoder = json.JSONEncoder(indent=4)
+        open("config.json", 'w').write(
+            json_encoder.encode(self.config._config))
+
+    def bomb_target(self, n_target):
+        if n_target != "":
+            self.target = n_target
+        print self.target
+
+    def bomb_bomb(self, rest):
+        if '@' not in self.target:
+            print "wrong email"
+        else:
+            bomb = bomb_handler.baboum(self.target, self.config, self.db)
+            bomb.start_thread()
 
     def main_menu(self):
-        while not self.endprogram:
-            if self.comp.mode == 'menu':
-                self.menu_mode()
-            elif self.comp.mode == 'db':
-                self.db_mode()
-            elif self.comp.mode == 'bomb':
-                self.bomb_mode()
-            elif self.comp.mode == 'insert':
-                self.insert_mode()
+        while True:
+            option = raw_input(
+                OKGREEN+self.comp.mode+" "+self.config.prompt()+ENDC+" ")
+            option = option.strip()  # First stripping babe
+            if option in ['exit', 'quit', 'q']:
+                break
+            splitted_command = option.partition('=')
+            c, r = splitted_command[0].strip(), splitted_command[2].strip()
+            if c in filter(
+                    lambda x: x != self.comp.mode,
+                    self.commands[self.comp.mode].keys()):
+                next_mode = self.commands[self.comp.mode][c](r)
+                if next_mode in self.commands.keys():
+                    self.comp.mode = next_mode
 
-#---run the program---#
+
+# ---run the program--- #
 the_menu = menu()
 the_menu.main_menu()
